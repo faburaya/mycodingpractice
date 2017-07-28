@@ -167,27 +167,32 @@ int solution(std::vector<int> &A)
 
     std::cout << "greedy result is " << greedyResult << std::endl;
 
-    /* Now we can try permutations between marked and unmarked partitions
+    /* Now we can try permutations between marked and UNmarked partitions
     in order to eliminate the remaining difference obtained in the greedy
     solution. This can be achieved by moving half the amount of the difference
-    from one partition to another. The greedy result is positive when the
-    sum in the UNmarked partition is greater than the sum in the marked
-    partition, hence an UNmarked value must be swapped with a superior value
-    in the marked partition. When the greedy result is negative, the opposite
-    must be done. */
+    from one partition to another. */
 
-    int equalizationTarget = greedyResult / 2;
+    int deltaToMarked = greedyResult / 2;
 
-    int increment = -equalizationTarget / abs(equalizationTarget);
+    /* The greedy result is positive when the sum in the marked partition is
+    greater than the sum in the UNmarked partition, hence an UNmarked value
+    must be swapped with a superior value in the marked partition. When the
+    greedy result is negative, the opposite must be done. The delta must be
+    decremented accordingly towards zero. */
+
+    int decrement = -deltaToMarked / abs(deltaToMarked);
 
     do
     {
-        if (lookup.SwapBetweenParts(equalizationTarget))
-            return abs(greedyResult - 2 * equalizationTarget);
+        if (lookup.SwapBetweenParts(deltaToMarked))
+        {
+            greedyResult -= 2 * deltaToMarked;
+            deltaToMarked = greedyResult / 2;
+        }
         else
-            equalizationTarget += increment;
+            deltaToMarked += decrement;
 
-    } while (equalizationTarget > 0);
+    } while (deltaToMarked > 0);
 
     return abs(greedyResult);
 }
