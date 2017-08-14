@@ -12,103 +12,89 @@
 #include <cinttypes>
 #include <cmath>
 
+#define TRACE(X)
 
 /// <sumary>
-/// A container of contiguous memory that enables "radix lookup"
-/// (where elements are indexed by their absolute values).
+/// A graph represented by an array of edges in contiguous
+/// memory, that allows radix-like lookup for its edges, each
+/// one identified by its index.
 /// </sumary>
-class PartitionedRadix
+class Graph
 {
 private:
 
-    struct Element
+    struct Edge
     {
-        uint16_t unmarkedCount;
-        uint16_t markedCount;
+        uint16_t count;
+        uint16_t available;
 
-        Element()
-            : unmarkedCount(0), markedCount(0) {}
+        Edge()
+            : count(0), available(0) {}
     };
 
-    std::vector<Element> m_values;
-
+    std::vector<Edge> m_edges;
+    
 public:
 
-    PartitionedRadix(int biggestValue)
-        : m_values(abs(biggestValue) + 1)
+    Graph(int biggestValue)
+        : m_edges(abs(biggestValue) + 1)
     {}
 
-    // add value to radix in UNmarked partition
-    void AddUnmarked(int value)
+    // add value to graph as an edge identified by the absolute
+    void AddEdge(int value)
     {
         value = abs(value);
 
-        if (value < m_values.size())
-            ++m_values[value].unmarkedCount;
+        if (value < m_edges.size())
+        {
+            auto &edge = m_edges[value];
+            edge.available = ++edge.count;
+        }
         else
             throw std::out_of_range("ERROR! Radix cannot add out of range value");
     }
-
-    // find value in radix UNmarked partition and move to the marked one
-    bool MoveToMarkedPart(int unmarkedValue)
+    
+    // DFS to find a path whose sum of edges reaches the total
+    int FindSumOfEdges(int total)
     {
-        unmarkedValue = abs(unmarkedValue);
+        TRACE(std::cout << "Calling FindSumOfEdges(" << total << ")" << std::endl);
 
-        if (unmarkedValue >= m_values.size())
-            throw std::out_of_range("ERROR! Radix cannot move out of range value");
+        if (total < 0)
+            throw std::logic_error("ERROR! Sum of edges cannot be negative");
 
-        auto &entry = m_values[unmarkedValue];
+        int maxAchieved(0);
 
-        if (entry.unmarkedCount > 0)
+        /* starting from the biggest available edge
+        that does not exceed the total up front */
+        int target = std::min(static_cast<int> (m_edges.size() - 1), total);
+
+        while (target > 0)
         {
-            --entry.unmarkedCount;
-            ++entry.markedCount;
-            return true;
-        }
+            auto &edge = m_edges[target];
 
-        return false;
-    }
+            if (edge.available > 0)
+            {
+                --edge.available;
 
-    // swap a value between UNmarked and marked partitions, given the delta from one to another
-    bool SwapBetweenParts(int delta)
-    {
-        if (abs(delta) >= m_values.size())
-            throw std::out_of_range("ERROR! Radix cannot swap out of range values");
+                int achieved = FindSumOfEdges(total - target) + target;
 
-        // calculate boundaries:
+                if (achieved == total)
+                {
+                    TRACE(std::cout << "Rewinding recursion: achieved " << total << std::endl);
+                    return total;
+                }
+                
+                if (achieved > maxAchieved)
+                    maxAchieved = achieved;
 
-        int absValUnmarked, endAbsValUnmarked;
-
-        if (delta > 0) // value in UNmarked partition is inferior
-        {
-            absValUnmarked = 0;
-            endAbsValUnmarked = m_values.size() - delta;
-        }
-        else // value in UNmarked partition is superior
-        {
-            absValUnmarked = -delta;
-            endAbsValUnmarked = m_values.size();
-        }
-
-        // scan the array looking for the pair to swap:
-        while (absValUnmarked < endAbsValUnmarked)
-        {
-            auto &entry2 = m_values[absValUnmarked + delta];
-            auto &entry1 = m_values[absValUnmarked];
-
-            if (entry1.unmarkedCount == 0 || entry2.markedCount == 0)
-                ++absValUnmarked;
-            else
-            {// swap between partitions:
-                --entry1.unmarkedCount;
-                ++entry1.markedCount;
-                --entry2.markedCount;
-                ++entry2.unmarkedCount;
-                return true;
+                ++edge.available;
             }
+
+            --target;
         }
 
-        return false;
+        TRACE(std::cout << "Rewinding recursion: achieved " << maxAchieved << std::endl);
+        return maxAchieved;
     }
 };
 
@@ -119,11 +105,8 @@ int solution(std::vector<int> &A)
     if (A.size() == 1)
         return abs(A[0]);
 
-    PartitionedRadix lookup(100);
+    Graph lookup(100);
 
-    // Start using greedy logic to find a almost optimal solution:
-
-    int maxAbsVal(0);
     int sumOfAbs(0);
 
     for (int x : A)
@@ -131,70 +114,12 @@ int solution(std::vector<int> &A)
         int absVal = abs(x);
         sumOfAbs += absVal;
         
-        lookup.AddUnmarked(x); // at first, add to unmarked partition
-
-        /* keep track of maximum, so as to
-        save some iterations further ahead: */
-
-        if (absVal <= maxAbsVal)
-            continue;
-        else
-            maxAbsVal = absVal;
+        lookup.AddEdge(x); // load numbers as edges of the graph
     }
 
-    int targetSum = (sumOfAbs / 2) + (sumOfAbs % 2);
-    int targetVal = std::min(targetSum, maxAbsVal);
+    int targetSum = sumOfAbs / 2;
 
-    while (targetSum > 0 && targetVal > 0)
-    {
-        if (!lookup.MoveToMarkedPart(targetVal))
-        {
-            --targetVal;
-            continue;
-        }
-        else
-        {
-            targetSum -= targetVal;
-            targetVal = std::min(targetSum, maxAbsVal);
-        }
-    }
-
-    int greedyResult = (sumOfAbs % 2) - 2 * targetSum;
-
-    // finish here if greedy logic was enough to find optimal solution
-    if (abs(greedyResult) <= 1)
-        return abs(greedyResult);
-
-    std::cout << "greedy result is " << greedyResult << std::endl;
-
-    /* Now we can try permutations between marked and UNmarked partitions
-    in order to eliminate the remaining difference obtained in the greedy
-    solution. This can be achieved by moving half the amount of the difference
-    from one partition to another. */
-
-    int deltaToMarked = greedyResult / 2;
-
-    /* The greedy result is positive when the sum in the marked partition is
-    greater than the sum in the UNmarked partition, hence an UNmarked value
-    must be swapped with a superior value in the marked partition. When the
-    greedy result is negative, the opposite must be done. The delta must be
-    decremented accordingly towards zero. */
-
-    int decrement = -deltaToMarked / abs(deltaToMarked);
-
-    do
-    {
-        if (lookup.SwapBetweenParts(deltaToMarked))
-        {
-            greedyResult -= 2 * deltaToMarked;
-            deltaToMarked = greedyResult / 2;
-        }
-        else
-            deltaToMarked += decrement;
-
-    } while (deltaToMarked > 0);
-
-    return abs(greedyResult);
+    return sumOfAbs - 2 * lookup.FindSumOfEdges(targetSum);
 }
 
 
