@@ -12,6 +12,11 @@
 #include <cinttypes>
 #include <cmath>
 
+#include <boost/spirit/home/classic.hpp>
+
+#undef min
+#undef max
+
 #define TRACE(X)
 
 /// <sumary>
@@ -123,8 +128,44 @@ int solution(std::vector<int> &A)
 }
 
 
-// entry point with regex-based-parser
+// entry point with Boost-Spirit-based parser
 int main()
+{
+    using namespace boost;
+
+    try
+    {
+        std::vector<int> numbers;
+        
+        auto grammar = '['
+            >> spirit::classic::int_p[spirit::classic::push_back_a(numbers)]
+            % spirit::classic::ch_p(',')
+            >> ']';
+        
+        std::string line;
+        std::getline(std::cin, line, '\n');
+        
+        while (spirit::classic::parse(line.c_str(), grammar, spirit::classic::space_p).full)
+        {
+            std::cout << "minimum absolute sum is " << solution(numbers) << std::endl;
+
+            numbers.clear();
+            
+            std::getline(std::cin, line, '\n');
+        }
+
+        return EXIT_SUCCESS;
+    }
+    catch (std::exception &ex)
+    {
+        std::cerr << ex.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+}
+
+
+// entry point with regex-based-parser
+int regex_main()
 {
     try
     {
