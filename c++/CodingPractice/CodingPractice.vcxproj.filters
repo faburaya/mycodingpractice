@@ -32,5 +32,8 @@
     <ClCompile Include="MinAbsSum.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CirclesIntersection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
